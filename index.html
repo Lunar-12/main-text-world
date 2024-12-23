@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    .tiny-textbox {
+      width: 12px;  /* Adjust width to make it smaller */
+      height: 12px;  /* Adjust height to make it smaller */
+      font-size: 10px; /* Font size remains 10px */
+      font-family: 'Press Start 2P', monospace; /* Bitmap-style font */
+      padding: 0;
+      border: none;
+      margin: 1px;
+      display: inline-block;
+      background-color: #f0f0f0;
+    }
+
+    .line {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="text-boxes-container">
+    <!-- Textboxes will be generated here -->
+  </div>
+
+  <script>
+    let numCols, numRows;  // To store the number of columns and rows
+
+    // Function to create text boxes and load previous inputs from localStorage
+    function createTextBoxes() {
+      const container = document.getElementById('text-boxes-container');
+      container.innerHTML = "";  // Clear any existing textboxes before recreating
+
+      // Calculate the number of columns and rows to fill the page
+      numCols = Math.floor(window.innerWidth / 14);  // Width of each textbox + margin
+      numRows = Math.floor(window.innerHeight / 14);  // Height of each textbox + margin
+
+      for (let row = 0; row < numRows; row++) {
+        const line = document.createElement('div');
+        line.className = 'line';
+        container.appendChild(line);
+
+        for (let col = 0; col < numCols; col++) {
+          const textbox = document.createElement('input');
+          textbox.type = 'text';
+          textbox.className = 'tiny-textbox';
+          
+          textbox.maxLength = 1;
+
+          // Load saved text from localStorage if available
+          const savedText = localStorage.getItem('textbox_' + row + '_' + col);
+          if (savedText) {
+            textbox.value = savedText;
+          }
+
+          // Save text entered in each box to localStorage when it changes
+          textbox.addEventListener('input', function() {
+            localStorage.setItem('textbox_' + row + '_' + col, textbox.value);
+
+            // Automatically jump to the next textbox if the current one is filled
+            if (textbox.value.length === textbox.maxLength) {
+              if (col < numCols - 1) {
+                // Move focus to the next textbox in the current row
+                const nextTextbox = document.getElementsByClassName('tiny-textbox')[(row * numCols) + col + 1];
+                nextTextbox.focus();
+              } else if (row < numRows - 1) {
+                // If at the end of the row, move to the first textbox of the next row
+                const nextRowFirstTextbox = document.getElementsByClassName('tiny-textbox')[(row + 1) * numCols];
+                nextRowFirstTextbox.focus();
+              }
+            }
+          });
+
+          // Handling backspace key to skip empty textboxes and switch rows if needed
+          textbox.addEventListener('keydown', function(event) {
+            if (event.key === 'Backspace') {
+              if (textbox.value.length === 0) {
+                // If the textbox is empty, move to the previous one with content
+                if (col > 0) {
+                  moveToPreviousNonEmptyTextbox(row, col);
+                } else if (row > 0) {
+                  // If at the start of the row, move to the last non-empty textbox in the previous row
+                  moveToPreviousNonEmptyTextboxInPreviousRow(row);
+                }
+              }
+            }
+          });
+
+          line.appendChild(textbox);
+        }
+      }
+    }
+
+    // Function to move focus to the previous non-empty textbox on the same row
+    function moveToPreviousNonEmptyTextbox(row, col) {
+      for (let i = col - 1; i >= 0; i--) {
+        const prevTextbox = document.getElementsByClassName('tiny-textbox')[(row * numCols) + i];
+        if (prevTextbox.value.length > 0) {
+          prevTextbox.focus();
+          break;
+        }
+      }
+    }
+
+    // Function to move focus to the previous non-empty textbox in the previous row
+    function moveToPreviousNonEmptyTextboxInPreviousRow(row) {
+      for (let i = numCols - 1; i >= 0; i--) {
+        const prevTextbox = document.getElementsByClassName('tiny-textbox')[(row - 1) * numCols + i];
+        if (prevTextbox.value.length > 0) {
+          prevTextbox.focus();
+          break;
+        }
+      }
+    }
+
+    // Call the function to create text boxes when the page loads
+    window.onload = createTextBoxes;
+
+    // Adjust the textboxes when resizing the window
+    window.onresize = function() {
+      createTextBoxes(); // Recreate textboxes based on new window size
+    };
+  </script>
+</body>
+</html>
