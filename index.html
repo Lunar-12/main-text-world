@@ -3,42 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cross-Device Saving Textboxes</title>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
     .tiny-textbox {
-      width: 12px;  /* Adjust width to make it smaller */
-      height: 12px;  /* Adjust height to make it smaller */
-      font-size: 10px; /* Font size remains 10px */
-      font-family: 'Press Start 2P', monospace; /* Bitmap-style font */
+      width: 12px;
+      height: 12px;
+      font-size: 10px;
+      font-family: 'Press Start 2P', monospace;
       padding: 0;
-      border: none;
+      border: 1px solid #ccc;
       margin: 1px;
       display: inline-block;
       background-color: #f0f0f0;
     }
-
     .line {
-      display: block;
+      display: flex;
     }
   </style>
 </head>
 <body>
-  <div id="text-boxes-container">
-    <!-- Textboxes will be generated here -->
-  </div>
+  <div id="text-boxes-container"></div>
 
   <script>
-    let numCols, numRows;  // To store the number of columns and rows
+    // Firebase Configuration
+    const firebaseConfig = {
+  apiKey: "AIzaSyB2waO_a9qS9h70An6WYJCtUjBETPHWYlU",
+  authDomain: "adada-c3f5e.firebaseapp.com",
+  projectId: "adada-c3f5e",
+  storageBucket: "adada-c3f5e.firebasestorage.app",
+  messagingSenderId: "769471205267",
+  appId: "1:769471205267:web:c409ef3ddbe8d789702266",
+  measurementId: "G-0RV4PPLSZZ"
+    };
 
-    // Function to create text boxes and load previous inputs from localStorage
-    function createTextBoxes() {
+    // Initialize Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Global variables for grid size
+    let numCols, numRows;
+
+    // Generate textboxes and sync with Firebase
+    async function createTextBoxes() {
       const container = document.getElementById('text-boxes-container');
-      container.innerHTML = "";  // Clear any existing textboxes before recreating
+      container.innerHTML = '';
+      numCols = Math.floor(window.innerWidth / 14);
+      numRows = Math.floor(window.innerHeight / 14);
 
-      // Calculate the number of columns and rows to fill the page
-      numCols = Math.floor(window.innerWidth / 14);  // Width of each textbox + margin
-      numRows = Math.floor(window.innerHeight / 14);  // Height of each textbox + margin
+      const gridData = await fetchGridData();
 
       for (let row = 0; row < numRows; row++) {
         const line = document.createElement('div');
@@ -49,45 +65,26 @@
           const textbox = document.createElement('input');
           textbox.type = 'text';
           textbox.className = 'tiny-textbox';
-          
           textbox.maxLength = 1;
 
-          // Load saved text from localStorage if available
-          const savedText = localStorage.getItem('textbox_' + row + '_' + col);
-          if (savedText) {
-            textbox.value = savedText;
-          }
+          // Load saved text if available
+          const key = `${row}_${col}`;
+          textbox.value = gridData[key] || '';
 
-          // Save text entered in each box to localStorage when it changes
-          textbox.addEventListener('input', function() {
-            localStorage.setItem('textbox_' + row + '_' + col, textbox.value);
+          // Save text to Firebase on input
+          textbox.addEventListener('input', () => {
+            saveToFirebase(row, col, textbox.value);
 
-            // Automatically jump to the next textbox if the current one is filled
+            // Move to the next textbox when filled
             if (textbox.value.length === textbox.maxLength) {
-              if (col < numCols - 1) {
-                // Move focus to the next textbox in the current row
-                const nextTextbox = document.getElementsByClassName('tiny-textbox')[(row * numCols) + col + 1];
-                nextTextbox.focus();
-              } else if (row < numRows - 1) {
-                // If at the end of the row, move to the first textbox of the next row
-                const nextRowFirstTextbox = document.getElementsByClassName('tiny-textbox')[(row + 1) * numCols];
-                nextRowFirstTextbox.focus();
-              }
+              moveToNextTextbox(row, col);
             }
           });
 
-          // Handling backspace key to skip empty textboxes and switch rows if needed
-          textbox.addEventListener('keydown', function(event) {
-            if (event.key === 'Backspace') {
-              if (textbox.value.length === 0) {
-                // If the textbox is empty, move to the previous one with content
-                if (col > 0) {
-                  moveToPreviousNonEmptyTextbox(row, col);
-                } else if (row > 0) {
-                  // If at the start of the row, move to the last non-empty textbox in the previous row
-                  moveToPreviousNonEmptyTextboxInPreviousRow(row);
-                }
-              }
+          // Handle backspace navigation
+          textbox.addEventListener('keydown', (event) => {
+            if (event.key === 'Backspace' && textbox.value === '') {
+              moveToPreviousTextbox(row, col);
             }
           });
 
@@ -96,35 +93,44 @@
       }
     }
 
-    // Function to move focus to the previous non-empty textbox on the same row
-    function moveToPreviousNonEmptyTextbox(row, col) {
-      for (let i = col - 1; i >= 0; i--) {
-        const prevTextbox = document.getElementsByClassName('tiny-textbox')[(row * numCols) + i];
-        if (prevTextbox.value.length > 0) {
-          prevTextbox.focus();
-          break;
-        }
+    // Fetch saved grid data from Firebase
+    async function fetchGridData() {
+      const doc = await db.collection('grids').doc('default').get();
+      return doc.exists ? doc.data() : {};
+    }
+
+    // Save a single cell's data to Firebase
+    function saveToFirebase(row, col, value) {
+      const key = `${row}_${col}`;
+      db.collection('grids').doc('default').set(
+        { [key]: value },
+        { merge: true } // Merge with existing data
+      );
+    }
+
+    // Move to the next textbox
+    function moveToNextTextbox(row, col) {
+      const nextIndex = row * numCols + col + 1;
+      const textboxes = document.getElementsByClassName('tiny-textbox');
+      if (nextIndex < textboxes.length) {
+        textboxes[nextIndex].focus();
       }
     }
 
-    // Function to move focus to the previous non-empty textbox in the previous row
-    function moveToPreviousNonEmptyTextboxInPreviousRow(row) {
-      for (let i = numCols - 1; i >= 0; i--) {
-        const prevTextbox = document.getElementsByClassName('tiny-textbox')[(row - 1) * numCols + i];
-        if (prevTextbox.value.length > 0) {
-          prevTextbox.focus();
-          break;
-        }
+    // Move to the previous textbox
+    function moveToPreviousTextbox(row, col) {
+      const prevIndex = row * numCols + col - 1;
+      const textboxes = document.getElementsByClassName('tiny-textbox');
+      if (prevIndex >= 0) {
+        textboxes[prevIndex].focus();
       }
     }
 
-    // Call the function to create text boxes when the page loads
+    // Recreate grid on window resize
+    window.onresize = createTextBoxes;
+
+    // Initialize grid on page load
     window.onload = createTextBoxes;
-
-    // Adjust the textboxes when resizing the window
-    window.onresize = function() {
-      createTextBoxes(); // Recreate textboxes based on new window size
-    };
   </script>
 </body>
 </html>
