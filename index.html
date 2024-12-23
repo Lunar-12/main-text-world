@@ -3,22 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cross-Device Saving Textboxes</title>
   <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-
     .tiny-textbox {
-      width: 12px;
-      height: 12px;
-      font-size: 10px;
+      width: 10px;
+      height: 8px;
+      font-size: 8px;
       font-family: 'Press Start 2P', monospace;
-      padding: 0;
-      border: 1px solid #ccc;
-      margin: 1px;
+      margin: 2px;
       display: inline-block;
       background-color: #f0f0f0;
+      border: none;
+      text-align: center;
     }
     .line {
       display: flex;
@@ -29,33 +26,27 @@
   <div id="text-boxes-container"></div>
 
   <script>
-    // Firebase Configuration
+    // Configuration Firebase avec vos informations
     const firebaseConfig = {
-  apiKey: "AIzaSyB2waO_a9qS9h70An6WYJCtUjBETPHWYlU",
-  authDomain: "adada-c3f5e.firebaseapp.com",
-  projectId: "adada-c3f5e",
-  storageBucket: "adada-c3f5e.firebasestorage.app",
-  messagingSenderId: "769471205267",
-  appId: "1:769471205267:web:c409ef3ddbe8d789702266",
-  measurementId: "G-0RV4PPLSZZ"
+      apiKey: "AIzaSyB2waO_a9qS9h70An6WYJCtUjBETPHWYlU",
+      authDomain: "adada-c3f5e.firebaseapp.com",
+      projectId: "adada-c3f5e",
+      storageBucket: "adada-c3f5e.firebasestorage.app",
+      messagingSenderId: "769471205267",
+      appId: "1:769471205267:web:c409ef3ddbe8d789702266",
+      measurementId: "G-0RV4PPLSZZ",
     };
 
-    // Initialize Firebase
+    // Initialisation de Firebase
     const app = firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Global variables for grid size
-    let numCols, numRows;
+    // Création des textboxes
+    const numCols = 50; // Nombre de colonnes
+    const numRows = 50; // Nombre de lignes
+    const container = document.getElementById('text-boxes-container');
 
-    // Generate textboxes and sync with Firebase
-    async function createTextBoxes() {
-      const container = document.getElementById('text-boxes-container');
-      container.innerHTML = '';
-      numCols = Math.floor(window.innerWidth / 14);
-      numRows = Math.floor(window.innerHeight / 14);
-
-      const gridData = await fetchGridData();
-
+    function createTextBoxes() {
       for (let row = 0; row < numRows; row++) {
         const line = document.createElement('div');
         line.className = 'line';
@@ -66,26 +57,24 @@
           textbox.type = 'text';
           textbox.className = 'tiny-textbox';
           textbox.maxLength = 1;
+          textbox.dataset.row = row;
+          textbox.dataset.col = col;
 
-          // Load saved text if available
-          const key = `${row}_${col}`;
-          textbox.value = gridData[key] || '';
+          // Charger le texte depuis Firestore
+          db.collection("textboxes")
+            .doc(`${row}_${col}`)
+            .get()
+            .then((doc) => {
+              if (doc.exists) {
+                textbox.value = doc.data().value || "";
+              }
+            });
 
-          // Save text to Firebase on input
+          // Sauvegarder dans Firestore lorsqu'une modification est détectée
           textbox.addEventListener('input', () => {
-            saveToFirebase(row, col, textbox.value);
-
-            // Move to the next textbox when filled
-            if (textbox.value.length === textbox.maxLength) {
-              moveToNextTextbox(row, col);
-            }
-          });
-
-          // Handle backspace navigation
-          textbox.addEventListener('keydown', (event) => {
-            if (event.key === 'Backspace' && textbox.value === '') {
-              moveToPreviousTextbox(row, col);
-            }
+            db.collection("textboxes")
+              .doc(`${row}_${col}`)
+              .set({ value: textbox.value });
           });
 
           line.appendChild(textbox);
@@ -93,44 +82,9 @@
       }
     }
 
-    // Fetch saved grid data from Firebase
-    async function fetchGridData() {
-      const doc = await db.collection('grids').doc('default').get();
-      return doc.exists ? doc.data() : {};
-    }
-
-    // Save a single cell's data to Firebase
-    function saveToFirebase(row, col, value) {
-      const key = `${row}_${col}`;
-      db.collection('grids').doc('default').set(
-        { [key]: value },
-        { merge: true } // Merge with existing data
-      );
-    }
-
-    // Move to the next textbox
-    function moveToNextTextbox(row, col) {
-      const nextIndex = row * numCols + col + 1;
-      const textboxes = document.getElementsByClassName('tiny-textbox');
-      if (nextIndex < textboxes.length) {
-        textboxes[nextIndex].focus();
-      }
-    }
-
-    // Move to the previous textbox
-    function moveToPreviousTextbox(row, col) {
-      const prevIndex = row * numCols + col - 1;
-      const textboxes = document.getElementsByClassName('tiny-textbox');
-      if (prevIndex >= 0) {
-        textboxes[prevIndex].focus();
-      }
-    }
-
-    // Recreate grid on window resize
-    window.onresize = createTextBoxes;
-
-    // Initialize grid on page load
-    window.onload = createTextBoxes;
+    // Initialisation des textboxes
+    createTextBoxes();
   </script>
 </body>
 </html>
+
